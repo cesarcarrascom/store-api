@@ -9,7 +9,7 @@ const getAllProductsStatic = async (req, res) => {
 };
 
 const getAllProducts = async (req, res) => {
-  const { featured, company, name, sort, fields } = req.query;
+  const { featured, company, name, sort, fields, numericFilters } = req.query;
   const queryObject = {};
 
   if (featured) {
@@ -25,7 +25,39 @@ const getAllProducts = async (req, res) => {
     queryObject.name = { $regex: name, $options: "i" };
   }
 
-  // console.log(queryObject)
+  // Math operators sent by URL params
+  if (numericFilters) {
+    const operatorMap = {
+      ">": "$gt",
+      ">=": "$gte",
+      "=": "$eq",
+      "<=": "$lte",
+      "<": "$lt",
+    };
+
+    // regex matches any operator
+    const regEx = /\b(<|<=|=|>=|>)\b/g;
+
+    // Replaces every operator with Mongoose operator.
+    let filters = numericFilters.replace(
+      regEx,
+      (match) => `-${operatorMap[match]}-`
+    );
+
+    const options = ["price", "rating"];
+
+    // Destructure query into 3 variables. -> price, $gt, 50
+    filters = filters.split(",").map((item) => {
+      const [field, operator, value] = item.split("-");
+
+      if (options.includes(field)) {
+        // Appends a query object to QueryObject
+        queryObject[field] = { [operator]: Number(value) };
+      }
+    });
+  }
+
+  console.log(queryObject);
 
   let result = Product.find(queryObject);
 
@@ -50,9 +82,9 @@ const getAllProducts = async (req, res) => {
 
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 10;
-  const skip = (page-1) * limit
+  const skip = (page - 1) * limit;
 
-  result = result.skip(skip).limit(limit)
+  result = result.skip(skip).limit(limit);
 
   const products = await result;
   res.status(200).json({ products, numHits: products.length });
